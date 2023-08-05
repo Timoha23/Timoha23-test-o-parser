@@ -1,0 +1,70 @@
+version: "3.9"
+services:
+  mysql:
+    container_name: mysql
+    image: mysql:8.1.0
+    ports:
+      - 3307:3306
+    restart: always
+    volumes: 
+      - mysql_value:/var/lib/mysql
+    env_file:
+      - ./.env
+    healthcheck:
+        test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+        timeout: 20s
+        retries: 10
+  
+  redis:
+    container_name: redis
+    image: redis:7.2-rc3-alpine
+    ports:
+      - 6380:6379
+    restart: always
+    volumes:
+      - redis_value:/var/lib/redis
+    env_file:
+      - ./.env
+  
+  worker:
+    container_name: worker
+    build: 
+      context: ./
+      dockerfile: ./backend/Dockerfile.celery
+    restart: always
+    env_file:
+      - ./.env
+    depends_on:
+      - backend
+      - redis
+
+  
+  backend:
+    container_name: backend
+    build: 
+      context: ./
+      dockerfile: ./backend/Dockerfile.backend
+    restart: always
+    ports:
+      - 80:80
+    env_file:
+      - ./.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    entrypoint: ./backend_entrypoint.sh
+
+  bot:
+    container_name: bot
+    build: 
+      context: ./
+      dockerfile: ./bot/Dockerfile.bot
+    restart: always
+    env_file:
+      - ./.env
+    depends_on:
+      - worker
+
+volumes:
+  mysql_value:
+  redis_value:
